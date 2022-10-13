@@ -9,8 +9,12 @@ import org.apache.commons.cli.*;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.io.compress.Compression;
+import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.security.UserGroupInformation;
 
@@ -19,14 +23,20 @@ public class HBaseInsertBenchmark {
 
     private static final byte[] CF_NAME = Bytes.toBytes("test_cf");
 
-    public static void createTable(final Admin admin, TableName table) throws IOException {
+    public static void createTable(final Admin admin, TableName table, boolean compression) throws IOException {
         System.out.println(admin.tableExists(table));
         if (!admin.tableExists(table)) {
-            TableDescriptor desc = TableDescriptorBuilder.newBuilder(table)
-                    .setColumnFamily(ColumnFamilyDescriptorBuilder.of(CF_NAME))
-                    .build();
-            System.out.println(desc);
-            admin.createTable(desc);
+
+            HTableDescriptor tableDescriptor = new HTableDescriptor(table);
+            HColumnDescriptor cd = new HColumnDescriptor(CF_NAME)
+                    .setDataBlockEncoding(DataBlockEncoding.FAST_DIFF)
+                    .setMaxVersions(1);
+            if (compression) {
+                System.out.println("Using compression in the columns");
+                cd.setCompressionType(Compression.Algorithm.GZ);
+            }
+            tableDescriptor.addFamily(cd);
+            admin.createTable(tableDescriptor);
             System.out.println("Table created");
         } else {
             System.out.println("Table already exists. Exiting...");
@@ -119,6 +129,10 @@ public class HBaseInsertBenchmark {
         delete.setRequired(false);
         options.addOption(delete);
 
+        Option compression = new Option("c", "compression", true, "Set any value to enable compression");
+        compression.setRequired(false);
+        options.addOption(compression);
+
         CommandLineParser parser = new DefaultParser();
         HelpFormatter formatter = new HelpFormatter();
         CommandLine cmd = null;   //not a good practice, it serves it purpose
@@ -160,7 +174,7 @@ public class HBaseInsertBenchmark {
         try (Connection connection = ConnectionFactory.createConnection(config); Admin admin = connection.getAdmin()) {
             System.out.println("Creating table: " + tableName.getNameAsString());
             HBaseAdmin.available(config);
-            createTable(admin, tableName);
+            createTable(admin, tableName, cmd.hasOption("compression"));
             System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
             System.out.println("Inserting " + batch * number + " rows with " + size + "KB data");
             System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
