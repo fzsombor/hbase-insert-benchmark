@@ -3,6 +3,7 @@ package com.cloudera;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 
 import org.apache.commons.cli.*;
@@ -74,7 +75,10 @@ public class HBaseInsertBenchmark {
     }
 
     public static byte[] generateByteField(int size) {
-        return new byte[size];
+
+        byte[] b = new byte[size];
+        new Random().nextBytes(b);
+        return b;
     }
 
     public static byte[][] generateByteRow(int size) {
